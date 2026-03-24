@@ -1,0 +1,50 @@
+﻿Dictionalr=> unique n-gram of all words
+
+Dictionary  ==> [appleap, ballap]
+
+Gram count===> 2 //// [2 3 4]
+
+Unique=>
+“ballap” => [ba, al, ll, la, ap]   ==>
+“appleap” ==> [ap, pp, pl le,ea]
+
+==>> [ap, pp, pl, le, ea,ba,al, ll, la]  ==>Dictionary-gram
+ 
+
+Non unique==> 
+						[ap, pp, pl, le, ea, ba, al, ll, la] 
+“appleap” => [ap, pp, pl, le, ea, ap]  ==>      [2   1     1   1   1   0   0    0   0]
+“ballap”==> [ba, al, ll, la, ap]  ======>      [1   0     0   0   0   1   1    1   1]
+
+
+
+Dictionary  ==> [appleap, ballap] ==> [[2   1     1   1   1   0   0    0   0] [1   0     0   0   0   1   1    1   1]]
+===========================> Count-vector of the model for the dictionary
+
+
+
+Prediction
+
+                      Dictionary-gram  [ap, pp, pl, le, ea, ba, al, ll, la] 
+“appp”   ===> [ap, pp, pp] =>  [1    2   0     0   0   0    0   0   0]   ==>Prediction ko count-vector
+
+
+Similarity-calculation using cosine similarity:
+
+===> First of Count-vector of the model for the dictionary(A1) and Prediction ko count-vector (B)
+
+S1 = A1.B/|A1|*|B|  ==>4/(r8 * r5)
+
+
+=> Second of Count-vector of the model for the dictionary(A2) and Prediction ko count-vector (B)
+
+S2 = A2.B/|A2|*|B|  ==> 1/(r5)(r5)
+….
+
+
+[S1 S2]   ===>>>>[s1 s2 …..]
+
+
+Position of highest similarity==>  0th position 
+
+Word of 0th position in dictionary is the word to predict.
