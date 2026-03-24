@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepCorpus — N-Gram Autocomplete with Cosine Similarity</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f0f0f; color: #e0e0e0; line-height: 1.7; padding: 40px 20px; }
+  .container { max-width: 800px; margin: 0 auto; }
+  h1 { font-size: 2em; color: #bb86fc; margin-bottom: 8px; }
+  h2 { font-size: 1.4em; color: #03dac6; margin-top: 40px; margin-bottom: 12px; border-bottom: 1px solid #333; padding-bottom: 6px; }
+  h3 { font-size: 1.1em; color: #cf6679; margin-top: 24px; margin-bottom: 8px; }
+  p { margin-bottom: 14px; }
+  .subtitle { color: #888; font-size: 0.95em; margin-bottom: 30px; }
+  code { background: #1e1e1e; color: #03dac6; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+  pre { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px; overflow-x: auto; margin: 12px 0 20px 0; font-size: 0.85em; line-height: 1.6; color: #ccc; }
+  pre code { background: none; padding: 0; }
+  .step { background: #1a1a2e; border-left: 4px solid #bb86fc; padding: 16px 20px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .step-num { color: #bb86fc; font-weight: bold; font-size: 1.1em; }
+  .example { background: #1a2e1a; border-left: 4px solid #03dac6; padding: 16px 20px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .example-title { color: #03dac6; font-weight: bold; margin-bottom: 8px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px 0; }
+  th { background: #1a1a2e; color: #bb86fc; padding: 10px 12px; text-align: left; border: 1px solid #333; }
+  td { padding: 8px 12px; border: 1px solid #333; }
+  tr:nth-child(even) { background: #1a1a1a; }
+  .formula { background: #2a1a2e; padding: 14px 20px; border-radius: 8px; margin: 12px 0; font-family: 'Courier New', monospace; font-size: 1em; color: #e0b0ff; text-align: center; }
+  .key-concept { display: inline-block; background: #bb86fc22; color: #bb86fc; padding: 2px 10px; border-radius: 12px; font-size: 0.85em; margin: 2px 4px; }
+  .summary-box { background: #1e1e2e; border: 2px solid #bb86fc; border-radius: 12px; padding: 24px; margin-top: 30px; }
+  .summary-box h2 { margin-top: 0; border: none; }
+  ul { margin: 8px 0 16px 24px; }
+  li { margin-bottom: 6px; }
+  .footer { margin-top: 50px; text-align: center; color: #555; font-size: 0.85em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>🧠 DeepCorpus — N-Gram Autocomplete</h1>
+<p class="subtitle">Using character n-grams and cosine similarity to predict/suggest words from a dictionary. Built in Clojure.</p>
+
+<h2>1. The Big Idea</h2>
+<p>Given a typed word (possibly misspelled), find the <strong>most similar words</strong> from a dictionary. The approach:</p>
+<ul>
+  <li>Break words into small character chunks (<strong>n-grams</strong>)</li>
+  <li>Represent each word as a <strong>count vector</strong> of those n-grams</li>
+  <li>Use <strong>cosine similarity</strong> to find the closest matches</li>
+</ul>
+
+<h2>2. What Are N-Grams?</h2>
+<p>An n-gram is a contiguous sequence of <code>n</code> characters from a word. This project uses <strong>2-grams, 3-grams, and 4-grams</strong>.</p>
+
+<div class="example">
+  <div class="example-title">📝 Example: N-grams of "apple"</div>
+  <table>
+    <tr><th>Type</th><th>N-Grams</th></tr>
+    <tr><td>2-grams</td><td><code>ap</code>, <code>pp</code>, <code>pl</code>, <code>le</code></td></tr>
+    <tr><td>3-grams</td><td><code>app</code>, <code>ppl</code>, <code>ple</code></td></tr>
+    <tr><td>4-grams</td><td><code>appl</code>, <code>pple</code></td></tr>
+  </table>
+</div>
+
+<h2>3. Building the Count Vector</h2>
+<p>Once we have all unique n-grams from the <em>entire dictionary</em>, each word is represented as a vector counting how many times each n-gram appears in it.</p>
+
+<div class="example">
+  <div class="example-title">📝 Example: Count vectors</div>
+  <p>Dictionary: <code>["appleap", "ballap"]</code></p>
+  <p>All unique n-grams (2-gram only for simplicity):</p>
+  <pre><code>[ap, pp, pl, le, ea, ba, al, ll, la]</code></pre>
+
+  <table>
+    <tr>
+      <th>Word</th>
+      <th>ap</th><th>pp</th><th>pl</th><th>le</th><th>ea</th><th>ba</th><th>al</th><th>ll</th><th>la</th>
+    </tr>
+    <tr>
+      <td><strong>appleap</strong></td>
+      <td>2</td><td>1</td><td>1</td><td>1</td><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td>
+    </tr>
+    <tr>
+      <td><strong>ballap</strong></td>
+      <td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td>
+    </tr>
+  </table>
+</div>
+
+<h2>4. Making a Prediction</h2>
+<p>When a user types a word (e.g. <code>"appp"</code>), we build its count vector the same way, then compare it against every word in the dictionary.</p>
+
+<div class="example">
+  <div class="example-title">📝 Example: Predicting "appp"</div>
+  <p>2-grams of <code>"appp"</code>: <code>[ap, pp, pp]</code></p>
+
+  <table>
+    <tr>
+      <th>Word</th>
+      <th>ap</th><th>pp</th><th>pl</th><th>le</th><th>ea</th><th>ba</th><th>al</th><th>ll</th><th>la</th>
+    </tr>
+    <tr>
+      <td><strong>"appp"</strong></td>
+      <td>1</td><td>2</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td>
+    </tr>
+  </table>
+</div>
+
+<h2>5. Cosine Similarity</h2>
+<p>Cosine similarity measures how similar two vectors are, regardless of their magnitude. It returns a value between 0 (completely different) and 1 (identical direction).</p>
+
+<div class="formula">
+  similarity = (A · B) / (|A| × |B|)
+</div>
+
+<p>Where:</p>
+<ul>
+  <li><strong>A · B</strong> = dot product (multiply matching elements, then sum)</li>
+  <li><strong>|A|</strong> = magnitude of vector A = √(sum of each element squared)</li>
+</ul>
+
+<div class="example">
+  <div class="example-title">📝 Example: Similarity of "appp" vs dictionary words</div>
+  
+  <h3>vs "appleap" (A₁)</h3>
+  <pre><code>A₁ = [2, 1, 1, 1, 1, 0, 0, 0, 0]
+B  = [1, 2, 0, 0, 0, 0, 0, 0, 0]
+
+A₁ · B = (2×1) + (1×2) + 0 + 0 + ... = 4
+|A₁| = √(4+1+1+1+1) = √8
+|B|  = √(1+4) = √5
+
+S₁ = 4 / (√8 × √5) = 4 / 6.32 ≈ <strong>0.632</strong></code></pre>
+
+  <h3>vs "ballap" (A₂)</h3>
+  <pre><code>A₂ = [1, 0, 0, 0, 0, 1, 1, 1, 1]
+B  = [1, 2, 0, 0, 0, 0, 0, 0, 0]
+
+A₂ · B = (1×1) + 0 + ... = 1
+|A₂| = √(1+1+1+1+1) = √5
+|B|  = √5
+
+S₂ = 1 / (√5 × √5) = 1/5 = <strong>0.200</strong></code></pre>
+
+  <p>Result: <code>[0.632, 0.200]</code> → highest similarity is at position 0 → predicted word is <strong>"appleap"</strong> ✅</p>
+</div>
+
+<h2>6. The Algorithm (Step by Step)</h2>
+
+<div class="step">
+  <span class="step-num">Step 1:</span> Load 1,000 random words from a 10,000-word dictionary
+</div>
+<div class="step">
+  <span class="step-num">Step 2:</span> Generate 2-grams, 3-grams, and 4-grams for every word
+</div>
+<div class="step">
+  <span class="step-num">Step 3:</span> Collect all <em>unique</em> n-grams across the dictionary → this becomes the "feature space"
+</div>
+<div class="step">
+  <span class="step-num">Step 4:</span> Build a count vector for each dictionary word (how often each n-gram appears)
+</div>
+<div class="step">
+  <span class="step-num">Step 5:</span> When the user types a word, build its count vector the same way
+</div>
+<div class="step">
+  <span class="step-num">Step 6:</span> Calculate cosine similarity between the input vector and every dictionary vector
+</div>
+<div class="step">
+  <span class="step-num">Step 7:</span> Return the top 5 most similar words
+</div>
+
+<h2>7. The Clojure Implementation</h2>
+<p>Key functions from the codebase:</p>
+
+<pre><code>;; Break a word into n-grams of size n
+(defn singlegram [n, word]
+  (for [i (range (+ (- (count word) n) 1))]
+    (str/join (subvec (str/split word #"") i (+ i n)))))
+
+;; Generate 2,3,4-grams for a word or list of words
+(defn multigram [list_word] ...)
+
+;; Build count vector for a word against dictionary n-grams
+(defn word_vector [word]
+  (let [gram (frequencies (multigram word))]
+    (map #(get gram % 0) dictionary_unique_multigram)))
+
+;; Cosine similarity between two vectors
+(defn cos_similarity [v1, v2]
+  (let [dot    (reduce + (map * v1 v2))
+        mag1   (Math/sqrt (reduce + (map #(* % %) v1)))
+        mag2   (Math/sqrt (reduce + (map #(* % %) v2)))]
+    (if (<= (* mag1 mag2) 0) 0.0
+      (float (/ dot (* mag1 mag2))))))
+
+;; Find top 5 similar words
+(defn similarity [word]
+  (take 5 (sort-by first >
+    (map vector
+      (map (partial cos_similarity (word_vector word)) count_vector)
+      word_1k))))</code></pre>
+
+<div class="summary-box">
+  <h2>🔑 Key Concepts Covered</h2>
+  <p>
+    <span class="key-concept">N-Grams</span>
+    <span class="key-concept">Count Vectors</span>
+    <span class="key-concept">Cosine Similarity</span>
+    <span class="key-concept">Dot Product</span>
+    <span class="key-concept">Vector Magnitude</span>
+    <span class="key-concept">Fuzzy String Matching</span>
+    <span class="key-concept">Autocomplete</span>
+    <span class="key-concept">Clojure</span>
+  </p>
+  <h3 style="margin-top: 16px;">Why This Matters</h3>
+  <ul>
+    <li>This is how spell checkers and search suggestions work under the hood</li>
+    <li>Cosine similarity is foundational in ML — used in recommendation systems, NLP, embeddings</li>
+    <li>N-gram features are still used in modern text classification and language detection</li>
+    <li>The same principle applies to document similarity, plagiarism detection, etc.</li>
+  </ul>
+</div>
+
+<div class="footer">
+  <p>Generated from ~/DeepCorpus project by Pluto 🪐 • March 2026</p>
+</div>
+
+</div>
+</body>
+</html>
